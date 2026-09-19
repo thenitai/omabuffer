@@ -166,6 +166,7 @@ Item {
     root.opened = true
     if (!root.cliChecked) root.resolveCli()
     root.ensureChannels()
+    if (root.sending) root.setStatus("Posting in the background…")
     Qt.callLater(root.focusDefault)
   }
 
@@ -179,7 +180,6 @@ Item {
   }
 
   function dismiss() {
-    if (root.sending) return
     root.opened = false
     if (root.shell && typeof root.shell.hide === "function")
       root.shell.hide((root.manifest && root.manifest.id) || "thenitai.omabuffer")
@@ -330,15 +330,20 @@ Item {
   }
 
   function channelsFailed(err) {
+    // Force a fresh verification on the next open.
+    root.channelsLoaded = false
     if (err && err.isAuth) {
       root.setupMode = true
       root.clearStatus()
       setup.statusText = "Your Buffer API key was rejected. Enter a new one."
       setup.statusError = true
-      if (root.opened) Qt.callLater(root.focusDefault)
+      if (!root.opened)
+        root.notify("Your Buffer API key was rejected — reopen the composer to sign in again", true)
+      else if (root.opened) Qt.callLater(root.focusDefault)
       return
     }
-    root.flash(err && err.message ? err.message : "Could not load channels", true)
+    if (root.opened) root.flash(err && err.message ? err.message : "Could not load channels", true)
+    else root.notify(err && err.message ? err.message : "Could not load channels", true)
   }
 
   // ---- posting pipeline ------------------------------------------------------------------
@@ -348,7 +353,11 @@ Item {
   // link card is attached per channel where the service supports it.
 
   function startPost() {
-    if (root.sending || root.channelsLoading) return
+    if (root.channelsLoading) return
+    if (root.sending) {
+      flash("Still sending the previous post…", true)
+      return
+    }
     if (!root.configured) {
       root.setupMode = true
       flash("Add your Buffer API key first", true)
@@ -361,7 +370,9 @@ Item {
     var v = Buffer.validateMulti(text, services)
     if (v) return root.flash(v, true)
     root.sending = true
-    root.setStatus("Checking daily limits…")
+    // Posting continues in the background; the composer closes immediately
+    // and the outcome arrives as a system notification.
+    root.dismiss()
     limitProc.start(root.channelIds, function(res, limitJson) {
       if (!res.ok && res.isAuth) {
         root.sending = false
@@ -374,7 +385,8 @@ Item {
             blocked.push(root.channelLabel(channels[j]))
         if (blocked.length > 0) {
           root.sending = false
-          return root.flash("Daily posting limit reached: " + blocked.join(", "), true)
+          root.notify("Daily posting limit reached: " + blocked.join(", "), true)
+          return
         }
       }
       // Limits unknown (query failed, e.g. older plan) — post anyway; the
@@ -390,7 +402,6 @@ Item {
   function postNext(text) {
     if (root.postQueue.length === 0) return root.postFinished()
     var ch = root.postQueue.shift()
-    root.setStatus("Sending " + (root.postTotal - root.postQueue.length) + "/" + root.postTotal + "…")
     var input = Buffer.buildPostInput(ch.id, root.mode, text, ch.service, root.linkCardUrl)
     postProc.start(JSON.stringify(input), function(res) {
       if (!res.ok && res.isAuth) {
@@ -410,30 +421,27 @@ Item {
       var msg = root.postTotal > 1
         ? (queued ? "Queued " + root.postTotal + " posts ✓" : "Posted to " + root.postTotal + " channels ✓")
         : (queued ? "Added to queue ✓" : "Posted ✓")
-      root.flash(msg, false)
-      Quickshell.execDetached(["notify-send", "Buffer", msg])
-      postDoneTimer.restart()
+      // Full success: the draft goes away; the composer is already closed.
+      composer.clearDraft()
+      root.linkCardUrl = ""
+      root.clearStatus()
+      root.notify(msg, false)
       return
     }
+    // Any failure keeps the draft so it can be corrected and retried.
     var detail = root.postFailures.join(" · ")
     if (root.postOk > 0)
-      root.flash("Done " + root.postOk + "/" + root.postTotal + " — " + detail, true)
+      root.notify("Done " + root.postOk + "/" + root.postTotal + " — " + detail, true)
     else
-      root.flash(detail || "Post failed", true)
+      root.notify(detail || "Post failed", true)
   }
 
-  function postSuccess() {
-    root.sending = false
-    postDoneTimer.restart()
+  function notify(body, isError) {
+    var args = ["notify-send"]
+    if (isError) args = args.concat(["-u", "critical"])
+    args = args.concat(["Buffer", body])
+    Quickshell.execDetached(args)
   }
-
-  function clearDraftAndClose() {
-    composer.clearDraft()
-    root.linkCardUrl = ""
-    root.clearStatus()
-    root.dismiss()
-  }
-
   // ---- processes ---------------------------------------------------------------------------
 
   Process {
@@ -736,12 +744,6 @@ Item {
     id: statusClearTimer
     interval: 4000
     onTriggered: root.clearStatus()
-  }
-
-  Timer {
-    id: postDoneTimer
-    interval: 700
-    onTriggered: root.clearDraftAndClose()
   }
 
   // ---- window --------------------------------------------------------------------------------------

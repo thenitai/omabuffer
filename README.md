@@ -11,6 +11,9 @@ official Buffer CLI. A tiny composer overlay for the Omarchy Quattro shell.
   chips; the multi-selection is remembered. One post is created per channel
   (Buffer's API posts to a single channel per call), each with the link
   card attached where its network supports one
+- **Background posting** — the composer closes the moment you hit post;
+  the outcome arrives as a system notification. Failures keep the draft so
+  you can correct and retry
 - **Queue or publish now** — add to the channels' Buffer queue or post
   immediately, one toggle
 - **Link cards** — paste a URL and attach a link card; Buffer fetches the
@@ -80,7 +83,7 @@ section is chosen during installation; see above for how to move it later.
 | Key | Action |
 | --- | --- |
 | `Esc` | Close (draft is kept) |
-| `Ctrl+Enter` | Post |
+| `Ctrl+Enter` | Post (composer closes; the post is sent in the background) |
 | `Ctrl+V` | Paste clipboard text at the cursor |
 | `Ctrl+A/C/X/Z` | Standard text editing |
 | `Super+A/V/C/X/Z` | Same, for Super-mapped system shortcuts — requires the triggering Hyprland bind to opt in with `{ allow_input_capture = true }` |
