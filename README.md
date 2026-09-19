@@ -1,8 +1,10 @@
 # omabuffer
 
-Post to Buffer from anywhere on Omarchy. Hit a global shortcut, pick a
-channel, type, Enter — queued or published immediately through the
+Post to Buffer from anywhere on Omarchy. Hit a global shortcut, pick your
+channels, type, Enter — queued or published immediately through the
 official Buffer CLI. A tiny composer overlay for the Omarchy Quattro shell.
+
+![preview](preview.png)
 
 ## Features
 
