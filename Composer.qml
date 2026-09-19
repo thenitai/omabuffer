@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import qs.Commons
 import qs.Ui
-import "Buffer.js" as Buffer
+import "BufferApi.js" as Buffer
 
 // The post composer: text area, channel chips, queue/now toggle, link card,
 // character counter and the send action.

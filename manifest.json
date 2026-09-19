@@ -6,9 +6,17 @@
   "author": "thenitai",
   "license": "MIT",
   "description": "Post to Buffer from anywhere — queue or publish text posts to any connected channel via a global shortcut",
-  "kinds": ["overlay"],
+  "kinds": ["overlay", "bar-widget"],
   "keepLoaded": true,
   "entryPoints": {
-    "overlay": "Buffer.qml"
+    "overlay": "Buffer.qml",
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Buffer composer",
+    "description": "Open the Buffer composer",
+    "category": "Social",
+    "allowMultiple": false,
+    "defaultSection": "right"
   }
 }

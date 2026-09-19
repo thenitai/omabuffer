@@ -1,10 +1,10 @@
-// Offline unit tests for the pure functions in Buffer.js.
+// Offline unit tests for the pure functions in BufferApi.js.
 // Run with: node tests/buffer.test.cjs
 
 const fs = require("fs")
 const path = require("path")
 
-let src = fs.readFileSync(path.join(__dirname, "..", "Buffer.js"), "utf8")
+let src = fs.readFileSync(path.join(__dirname, "..", "BufferApi.js"), "utf8")
 src = src.replace(/\.pragma library\n/, "")
 const Buffer = eval("(function(){" + src + "; return {MODE_QUEUE, MODE_NOW, DEFAULT_MODE, CHAR_LIMITS, DEFAULT_CHAR_LIMIT, LINK_CARD_SERVICES, supportsLinkCard, charLimit, extractUrls, firstUrl, hostOf, graphemeCount, charCount, buildPostInput, validate, parseResult, extractAccount, extractChannels, limitEntry, limitReached, limitMessage}})()")
 

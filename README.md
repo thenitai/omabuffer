@@ -6,7 +6,7 @@ official Buffer CLI. A tiny composer overlay for the Omarchy Quattro shell.
 
 ## Features
 
-- **Global shortcut** composer overlay — summon from any workspace, Esc closes
+- **Bar icon and global shortcut** composer overlay — summon from either, Esc closes
 - **Any connected channel** — pick from your Buffer channels with one click;
   the choice is remembered
 - **Queue or publish now** — add to the channel's Buffer queue or post
@@ -25,6 +25,14 @@ official Buffer CLI. A tiny composer overlay for the Omarchy Quattro shell.
 omarchy plugin add https://github.com/thenitai/omabuffer.git --enable
 ```
 
+During installation you are asked where to place the bar icon — left,
+center or right (the right side is the preselected default). To move it
+later:
+
+```sh
+omarchy plugin enable thenitai.omabuffer --section center
+```
+
 Then install the Buffer CLI (Node 18 or later):
 
 ```sh
@@ -34,8 +42,8 @@ npm install -g @bufferapp/cli
 ## Setup
 
 1. Create an API key at **publish.buffer.com → Settings → API**.
-2. Press the composer shortcut — the first run shows the setup form.
-   Paste the API key and hit *Save & verify*.
+2. Click the Buffer bar icon or press the composer shortcut — the first run
+   shows the setup form. Paste the API key and hit *Save & verify*.
 3. Pick the channel to post to directly in the composer.
 
 The API key is stored in `~/.config/omarchy-buffer/api-key` (directory mode
@@ -55,6 +63,12 @@ Change it in the plugin's **Settings** view: type a combo like
 Hyprland action are rejected with the conflicting action's name, and
 leaving the field empty disables the shortcut. The choice persists across
 restarts.
+
+## Bar icon
+
+The Buffer icon on the bar opens (or closes) the composer — a discoverable
+fallback for when the global shortcut is disabled or unavailable. Its
+section is chosen during installation; see above for how to move it later.
 
 ## Keyboard
 

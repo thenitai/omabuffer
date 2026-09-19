@@ -5,7 +5,7 @@ import Quickshell.Io
 import Quickshell.Wayland
 import qs.Commons
 import qs.Ui
-import "Buffer.js" as Buffer
+import "BufferApi.js" as Buffer
 import "ShortcutModel.js" as ShortcutModel
 
 // Buffer composer overlay. Summoned with a Hyprland binding:
@@ -41,7 +41,7 @@ Item {
   // ---- state ----------------------------------------------------------------
   readonly property string stateDir: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/omarchy-buffer"
   readonly property string pluginDir: {
-    var s = Qt.resolvedUrl("Buffer.js").toString()
+    var s = Qt.resolvedUrl("BufferApi.js").toString()
     s = s.substring(0, s.lastIndexOf("/") + 1)
     if (s.indexOf("file://") === 0) s = s.substring(7)
     return decodeURIComponent(s)
