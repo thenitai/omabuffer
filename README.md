@@ -7,17 +7,21 @@ official Buffer CLI. A tiny composer overlay for the Omarchy Quattro shell.
 ## Features
 
 - **Bar icon and global shortcut** composer overlay — summon from either, Esc closes
-- **Any connected channel** — pick from your Buffer channels with one click;
-  the choice is remembered
-- **Queue or publish now** — add to the channel's Buffer queue or post
+- **Any connected channel** — pick one or several channels by clicking the
+  chips; the multi-selection is remembered. One post is created per channel
+  (Buffer's API posts to a single channel per call), each with the link
+  card attached where its network supports one
+- **Queue or publish now** — add to the channels' Buffer queue or post
   immediately, one toggle
 - **Link cards** — paste a URL and attach a link card; Buffer fetches the
   page (including its image) when the post goes out. Supported on Bluesky,
   LinkedIn, Facebook and Threads; X/Twitter unfurls links natively
-- **Daily limit check** — before every post the channel's daily posting
-  limit is checked and a used-up channel is reported up front
-- **Per-channel character counter** — counts the way each network counts
-  (Bluesky graphemes, LinkedIn URLs as 24, X URLs as 23)
+- **Daily limit check** — before every post all selected channels' daily
+  posting limits are checked in one call, and used-up channels are named
+  up front
+- **Per-channel character counter** — counts the way each selected network
+  counts (Bluesky graphemes, LinkedIn URLs as 24, X URLs as 23) and shows
+  the tightest remaining allowance across the selection
 
 ## Install
 
@@ -44,7 +48,8 @@ npm install -g @bufferapp/cli
 1. Create an API key at **publish.buffer.com → Settings → API**.
 2. Click the Buffer bar icon or press the composer shortcut — the first run
    shows the setup form. Paste the API key and hit *Save & verify*.
-3. Pick the channel to post to directly in the composer.
+3. Pick the channels to post to directly in the composer; multi-select is
+   remembered across opens and restarts.
 
 The API key is stored in `~/.config/omarchy-buffer/api-key` (directory mode
 `0700`, the key file `0600`) and is handed to the Buffer CLI through its
@@ -88,9 +93,11 @@ wraps Buffer's public GraphQL API:
 
 - `buffer account` — API key verification and organization lookup
 - `buffer channels list` — the channel picker
-- `buffer dailyPostingLimits list` — pre-flight check before each post
-- `buffer posts create --input -` — the post itself, with the payload piped
-  through stdin (nothing user-typed ever appears in `argv`)
+- `buffer dailyPostingLimits list` — pre-flight check for every selected
+  channel in one call, before each post
+- `buffer posts create --input -` — the post itself, one call per selected
+  channel (Buffer's API targets a single channel per post), with the
+  payload piped through stdin (nothing user-typed ever appears in `argv`)
 
 Errors are surfaced from the CLI's structured JSON output; auth failures
 (issued or expired keys) reopen the setup form, mutation errors (for

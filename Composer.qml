@@ -4,8 +4,8 @@ import qs.Commons
 import qs.Ui
 import "BufferApi.js" as Buffer
 
-// The post composer: text area, channel chips, queue/now toggle, link card,
-// character counter and the send action.
+// The post composer: text area, multi-select channel chips, queue/now
+// toggle, link card, character counter and the send action.
 
 Column {
   id: c
@@ -13,7 +13,7 @@ Column {
   spacing: c.contentSpacing
 
   property var channelsModel: null
-  property string channelId: ""
+  property var channelIds: []
   property string mode: Buffer.MODE_QUEUE
   property string linkCardUrl: ""
   property bool sending: false
@@ -28,7 +28,7 @@ Column {
   signal postRequested()
   signal dismissRequested()
   signal settingsRequested()
-  signal channelPicked(string id)
+  signal channelToggled(string id)
   signal modePicked(string mode)
   signal linkCardRequested()
   signal clearLinkCardRequested()
@@ -36,24 +36,28 @@ Column {
   readonly property alias text: textArea.text
   readonly property alias textAreaItem: textArea
 
-  // The channel currently selected in the chips row.
-  readonly property var selectedChannel: {
-    if (!c.channelsModel) return null
-    for (var i = 0; i < c.channelsModel.count; i++) {
-      var ch = c.channelsModel.get(i)
-      if (ch.id === c.channelId) return ch
+  // Services of the selected channels — drives the counter and link card.
+  readonly property var selectedServices: {
+    var out = []
+    if (c.channelsModel) {
+      for (var i = 0; i < c.channelsModel.count; i++) {
+        var ch = c.channelsModel.get(i)
+        if (c.channelIds.indexOf(ch.id) !== -1) out.push(String(ch.service || ""))
+      }
     }
-    return null
+    return out
   }
-  readonly property string selectedService: c.selectedChannel ? c.selectedChannel.service : ""
-  readonly property int limit: Buffer.charLimit(c.selectedService)
-  readonly property int used: Buffer.charCount(textArea.text, c.selectedService)
-  readonly property int remaining: c.limit - c.used
-  readonly property bool overLimit: c.remaining < 0
+  readonly property int remaining: Buffer.minRemaining(textArea.text, c.selectedServices)
+  readonly property bool overLimit: c.selectedServices.length > 0 && c.remaining < 0
   readonly property string cardUrl: Buffer.firstUrl(textArea.text)
   readonly property bool linkCardAvailable: c.cardUrl !== "" && c.linkCardUrl === ""
-    && Buffer.supportsLinkCard(c.selectedService)
-  readonly property bool canPost: !c.sending && !c.checking && c.channelId !== ""
+    && c.anyLinkCardService
+  readonly property bool anyLinkCardService: {
+    for (var i = 0; i < c.selectedServices.length; i++)
+      if (Buffer.supportsLinkCard(c.selectedServices[i])) return true
+    return false
+  }
+  readonly property bool canPost: !c.sending && !c.checking && c.channelIds.length > 0
     && !c.overLimit && textArea.text.trim() !== ""
 
   function insertClipboardText(t) {
@@ -123,7 +127,7 @@ Column {
     }
   }
 
-  // ---- channel chips -----------------------------------------------------------
+  // ---- channel chips (multi-select) -------------------------------------------
 
   Flow {
     width: parent.width
@@ -141,10 +145,12 @@ Column {
 
         height: c.footerHeight
         text: (displayName !== "" ? displayName : name) + " · " + service
-        selected: id === c.channelId
+        selected: c.channelIds.indexOf(id) !== -1
         enabled: !c.sending
-        tooltipText: "Post to " + (displayName !== "" ? displayName : name) + " (" + service + ")"
-        onClicked: c.channelPicked(id)
+        tooltipText: c.channelIds.indexOf(id) !== -1
+          ? "Selected — click to remove"
+          : "Add " + (displayName !== "" ? displayName : name) + " (" + service + ") to this post"
+        onClicked: c.channelToggled(id)
       }
     }
   }
@@ -230,6 +236,7 @@ Column {
 
       Text {
         y: (parent.height - height) / 2
+        visible: c.channelIds.length > 0
         text: c.overLimit ? (c.remaining + " over") : (c.remaining + " left")
         color: c.overLimit ? c.errorColor : c.foreground
         opacity: c.overLimit ? 1 : 0.55

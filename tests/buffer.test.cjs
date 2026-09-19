@@ -6,7 +6,7 @@ const path = require("path")
 
 let src = fs.readFileSync(path.join(__dirname, "..", "BufferApi.js"), "utf8")
 src = src.replace(/\.pragma library\n/, "")
-const Buffer = eval("(function(){" + src + "; return {MODE_QUEUE, MODE_NOW, DEFAULT_MODE, CHAR_LIMITS, DEFAULT_CHAR_LIMIT, LINK_CARD_SERVICES, supportsLinkCard, charLimit, extractUrls, firstUrl, hostOf, graphemeCount, charCount, buildPostInput, validate, parseResult, extractAccount, extractChannels, limitEntry, limitReached, limitMessage}})()")
+const Buffer = eval("(function(){" + src + "; return {MODE_QUEUE, MODE_NOW, DEFAULT_MODE, CHAR_LIMITS, DEFAULT_CHAR_LIMIT, LINK_CARD_SERVICES, supportsLinkCard, charLimit, extractUrls, firstUrl, hostOf, graphemeCount, charCount, buildPostInput, minRemaining, validateMulti, parseResult, extractAccount, extractChannels, limitEntry, limitReached}})()")
 
 let failed = 0
 function eq(name, got, want) {
@@ -70,11 +70,21 @@ eq("post input card case-insensitive service", cardBsky.metadata, { bluesky: { l
 eq("post input no card on twitter", Buffer.buildPostInput("ch1", "addToQueue", "x", "twitter", "https://example.com").metadata, undefined)
 eq("post input no card url", Buffer.buildPostInput("ch1", "addToQueue", "x", "linkedin", "").metadata, undefined)
 
-// validate
-eq("validate empty", Buffer.validate("", "twitter", true), "Write something first")
-eq("validate no channel", Buffer.validate("hi", "twitter", false), "Pick a channel first")
-eq("validate over twitter", Buffer.validate("x".repeat(281), "twitter", true), "Over the 280 character limit for this channel")
-eq("validate ok", Buffer.validate("hi", "twitter", true), "")
+// validateMulti
+eq("validate empty", Buffer.validateMulti("", ["twitter"]), "Write something first")
+eq("validate no channels", Buffer.validateMulti("hi", []), "Pick a channel first")
+eq("validate over twitter", Buffer.validateMulti("x".repeat(281), ["twitter"]), "Over the 280 character limit for this channel")
+eq("validate ok", Buffer.validateMulti("hi", ["twitter", "linkedin"]), "")
+// per-channel counting: 301 raw chars fit linkedin but not bluesky
+eq("validate tightest channel wins", Buffer.validateMulti("y".repeat(301), ["linkedin", "bluesky"]), "Over the 300 character limit for this channel")
+
+// minRemaining — the tightest allowance across selected services
+eq("minRemaining single", Buffer.minRemaining("hello", ["twitter"]), 275)
+eq("minRemaining mixed picks tightest", Buffer.minRemaining("hello", ["linkedin", "twitter"]), 275)
+// "a https://example.com/x b": linkedin counts 28 (url→24), bluesky counts 25 graphemes → 275
+eq("minRemaining url tightest", Buffer.minRemaining("a https://example.com/x b", ["linkedin", "bluesky"]), 275)
+eq("minRemaining bluesky graphemes", Buffer.minRemaining("a https://example.com/x b", ["bluesky"]), 275)
+eq("minRemaining no selection", Buffer.minRemaining("hi", []), 4998)
 
 // parseResult
 eq("parse success", Buffer.parseResult(0, '{"id":"5"}', ""),
@@ -101,10 +111,8 @@ const limitJson = { channelId: "ch1", sent: 4, scheduled: 6, limit: 10, isAtLimi
 eq("limit reached", Buffer.limitReached(limitJson, "ch1"), true)
 eq("limit other channel", Buffer.limitReached([{ channelId: "ch2", isAtLimit: true }], "ch1"), false)
 eq("limit not reached", Buffer.limitReached({ channelId: "ch1", isAtLimit: false }, "ch1"), false)
-eq("limit message", Buffer.limitMessage(limitJson, "ch1"),
-  "Daily posting limit reached for this channel — 10/10 posts today")
-eq("limit message mixed", Buffer.limitMessage({ channelId: "ch1", sent: 2, scheduled: 3, limit: 10, isAtLimit: false }, "ch1"),
-  "Daily posting limit reached for this channel — 5/10 posts today")
+eq("limit array finds channel", Buffer.limitReached(
+  [{ channelId: "chA", isAtLimit: false }, { channelId: "chB", isAtLimit: true }], "chB"), true)
 
 console.log(failed === 0 ? "\nALL TESTS PASSED" : "\n" + failed + " TESTS FAILED")
 process.exit(failed === 0 ? 0 : 1)

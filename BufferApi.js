@@ -111,7 +111,8 @@ function charCount(text, service) {
 
 // ---- input construction ------------------------------------------------------
 
-// The JSON object piped to `buffer posts create --input -`.
+// The JSON object piped to `buffer posts create --input -`. One call per
+// channel; the link card is attached only where the service supports it.
 function buildPostInput(channelId, mode, text, service, cardUrl) {
   var input = {
     channelId: String(channelId || ""),
@@ -128,11 +129,28 @@ function buildPostInput(channelId, mode, text, service, cardUrl) {
   return input
 }
 
-function validate(text, service, hasChannel) {
+// Smallest remaining allowance across the selected channels' services —
+// drives the live counter for a multi-channel post.
+function minRemaining(text, services) {
+  var t = String(text || "")
+  if (!services || !services.length)
+    return DEFAULT_CHAR_LIMIT - charCount(t, "")
+  var min = null
+  for (var i = 0; i < services.length; i++) {
+    var r = charLimit(services[i]) - charCount(t, services[i])
+    if (min === null || r < min) min = r
+  }
+  return min
+}
+
+// Validates the text against every selected channel's counting rules.
+function validateMulti(text, services) {
   if (!String(text || "").trim()) return "Write something first"
-  if (!hasChannel) return "Pick a channel first"
-  if (charCount(text, service) > charLimit(service))
-    return "Over the " + charLimit(service) + " character limit for this channel"
+  if (!services || !services.length) return "Pick a channel first"
+  for (var i = 0; i < services.length; i++) {
+    if (charCount(text, services[i]) > charLimit(services[i]))
+      return "Over the " + charLimit(services[i]) + " character limit for this channel"
+  }
   return ""
 }
 
@@ -203,11 +221,4 @@ function limitEntry(limitJson, channelId) {
 function limitReached(limitJson, channelId) {
   var d = limitEntry(limitJson, channelId)
   return !!(d && d.isAtLimit === true)
-}
-
-function limitMessage(limitJson, channelId) {
-  var d = limitEntry(limitJson, channelId) || {}
-  var used = (Number(d.sent) || 0) + (Number(d.scheduled) || 0)
-  var limit = Number(d.limit) || 0
-  return "Daily posting limit reached for this channel — " + used + "/" + limit + " posts today"
 }

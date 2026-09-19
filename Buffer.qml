@@ -58,7 +58,7 @@ Item {
 
   property string apiKey: ""
   property string lastOrgId: ""
-  property string channelId: ""
+  property var channelIds: []
   property string mode: Buffer.MODE_QUEUE
 
   property bool channelsLoaded: false
@@ -71,6 +71,12 @@ Item {
   property bool sending: false
 
   property string linkCardUrl: ""
+
+  // ---- multi-post pipeline scratch state -----------------------------------
+  property var postQueue: []
+  property int postTotal: 0
+  property int postOk: 0
+  property var postFailures: []
 
   // ---- global shortcut (registered at runtime via hyprctl eval) -----------
   property string shortcut: ""
@@ -119,7 +125,7 @@ Item {
 
   function savePrefs() {
     prefsView.setText(JSON.stringify({
-      channelId: root.channelId,
+      channelIds: root.channelIds,
       mode: root.mode,
       shortcut: root.shortcut
     }))
@@ -244,10 +250,33 @@ Item {
     })
   }
 
-  function hasChannel(id) {
-    for (var i = 0; i < channelsModel.count; i++)
-      if (channelsModel.get(i).id === id) return true
-    return false
+  function isSelected(id) {
+    return root.channelIds.indexOf(id) !== -1
+  }
+
+  function toggleChannel(id) {
+    var next = root.channelIds.slice()
+    var idx = next.indexOf(id)
+    if (idx === -1) next.push(id)
+    else next.splice(idx, 1)
+    root.channelIds = next
+    root.savePrefs()
+  }
+
+  // The selected channels as plain objects, in model order.
+  function selectedChannels() {
+    var out = []
+    for (var i = 0; i < channelsModel.count; i++) {
+      var ch = channelsModel.get(i)
+      if (root.isSelected(ch.id))
+        out.push({ id: ch.id, name: ch.name, displayName: ch.displayName, service: ch.service })
+    }
+    return out
+  }
+
+  function channelLabel(ch) {
+    var name = ch.displayName || ch.name || ch.service
+    return name + " (" + ch.service + ")"
   }
 
   function ensureChannels() {
@@ -286,12 +315,15 @@ Item {
           avatar: String(ch.avatar || "")
         })
       }
-      if (channelsModel.count > 0) {
-        if (!root.channelId || !root.hasChannel(root.channelId))
-          root.channelId = channelsModel.get(0).id
-      } else {
-        root.channelId = ""
+      // Keep the remembered selection, minus channels that no longer exist.
+      var kept = []
+      for (var j = 0; j < channelsModel.count; j++) {
+        var id = channelsModel.get(j).id
+        if (root.isSelected(id)) kept.push(id)
       }
+      if (kept.length === 0 && channelsModel.count > 0)
+        kept = [channelsModel.get(0).id]
+      root.channelIds = kept
       root.channelsLoaded = true
       root.clearStatus()
     })
@@ -310,14 +342,10 @@ Item {
   }
 
   // ---- posting pipeline ------------------------------------------------------------------
-
-  function selectedChannel() {
-    for (var i = 0; i < channelsModel.count; i++) {
-      var ch = channelsModel.get(i)
-      if (ch.id === root.channelId) return ch
-    }
-    return null
-  }
+  //
+  // createPost targets a single channel, so a multi-channel post fans out to
+  // one post per selected channel, sent sequentially through postProc. The
+  // link card is attached per channel where the service supports it.
 
   function startPost() {
     if (root.sending || root.channelsLoading) return
@@ -326,42 +354,76 @@ Item {
       flash("Add your Buffer API key first", true)
       return
     }
-    var ch = root.selectedChannel()
+    var channels = root.selectedChannels()
     var text = composer.text
-    var v = Buffer.validate(text, ch ? ch.service : "", !!ch)
+    var services = []
+    for (var i = 0; i < channels.length; i++) services.push(channels[i].service)
+    var v = Buffer.validateMulti(text, services)
     if (v) return root.flash(v, true)
     root.sending = true
-    root.setStatus("Checking daily limit…")
-    limitProc.start(ch.id, function(res, limitJson) {
+    root.setStatus("Checking daily limits…")
+    limitProc.start(root.channelIds, function(res, limitJson) {
       if (!res.ok && res.isAuth) {
         root.sending = false
         return root.channelsFailed(res)
       }
-      if (res.ok && Buffer.limitReached(limitJson, ch.id)) {
-        root.sending = false
-        return root.flash(Buffer.limitMessage(limitJson, ch.id), true)
-      }
-      // Limit unknown (query failed, e.g. older plan) — post anyway; the
-      // server enforces limits authoritatively and reports a typed error.
-      root.setStatus("Sending…")
-      var input = Buffer.buildPostInput(ch.id, root.mode, text, ch.service, root.linkCardUrl)
-      postProc.start(JSON.stringify(input), function(res2) {
-        if (!res2.ok) {
+      if (res.ok) {
+        var blocked = []
+        for (var j = 0; j < channels.length; j++)
+          if (Buffer.limitReached(limitJson, channels[j].id))
+            blocked.push(root.channelLabel(channels[j]))
+        if (blocked.length > 0) {
           root.sending = false
-          if (res2.isAuth) return root.channelsFailed(res2)
-          return root.flash(res2.message || "Post failed", true)
+          return root.flash("Daily posting limit reached: " + blocked.join(", "), true)
         }
-        root.postSuccess()
-      })
+      }
+      // Limits unknown (query failed, e.g. older plan) — post anyway; the
+      // server enforces limits authoritatively and reports a typed error.
+      root.postQueue = channels
+      root.postTotal = channels.length
+      root.postOk = 0
+      root.postFailures = []
+      root.postNext(text)
     })
+  }
+
+  function postNext(text) {
+    if (root.postQueue.length === 0) return root.postFinished()
+    var ch = root.postQueue.shift()
+    root.setStatus("Sending " + (root.postTotal - root.postQueue.length) + "/" + root.postTotal + "…")
+    var input = Buffer.buildPostInput(ch.id, root.mode, text, ch.service, root.linkCardUrl)
+    postProc.start(JSON.stringify(input), function(res) {
+      if (!res.ok && res.isAuth) {
+        root.sending = false
+        return root.channelsFailed(res)
+      }
+      if (res.ok) root.postOk++
+      else root.postFailures.push(root.channelLabel(ch) + ": " + res.message)
+      root.postNext(text)
+    })
+  }
+
+  function postFinished() {
+    root.sending = false
+    if (root.postFailures.length === 0) {
+      var queued = root.mode === Buffer.MODE_QUEUE
+      var msg = root.postTotal > 1
+        ? (queued ? "Queued " + root.postTotal + " posts ✓" : "Posted to " + root.postTotal + " channels ✓")
+        : (queued ? "Added to queue ✓" : "Posted ✓")
+      root.flash(msg, false)
+      Quickshell.execDetached(["notify-send", "Buffer", msg])
+      postDoneTimer.restart()
+      return
+    }
+    var detail = root.postFailures.join(" · ")
+    if (root.postOk > 0)
+      root.flash("Done " + root.postOk + "/" + root.postTotal + " — " + detail, true)
+    else
+      root.flash(detail || "Post failed", true)
   }
 
   function postSuccess() {
     root.sending = false
-    var queued = root.mode === Buffer.MODE_QUEUE
-    root.flash(queued ? "Added to queue ✓" : "Posted ✓", false)
-    Quickshell.execDetached(["notify-send", "Buffer",
-      queued ? "Added to your queue ✓" : "Published now ✓"])
     postDoneTimer.restart()
   }
 
@@ -533,11 +595,11 @@ Item {
       var res = Buffer.parseResult(code, limitOut.text, limitErr.text)
       if (f) f(res, res.ok ? res.json : null)
     }
-    function start(channelId, callback) {
+    function start(channelIds, callback) {
       if (running) return callback({ ok: false, message: "busy", isAuth: false }, null)
       limitProc.cb = callback
-      command = [root.cliPath, "dailyPostingLimits", "list", "--channel-ids", channelId,
-        "--output", "json", "--quiet"]
+      command = [root.cliPath, "dailyPostingLimits", "list",
+        "--channel-ids", channelIds.join(","), "--output", "json", "--quiet"]
       running = true
     }
   }
@@ -646,7 +708,11 @@ Item {
       try {
         var data = JSON.parse(text() || "{}")
         if (data && typeof data === "object") {
-          root.channelId = String(data.channelId || "")
+          var ids = Array.isArray(data.channelIds) ? data.channelIds : []
+          // Migration from the single-channel preference of v0.1.
+          if (ids.length === 0 && typeof data.channelId === "string" && data.channelId)
+            ids = [data.channelId]
+          root.channelIds = ids.filter(function(x) { return typeof x === "string" })
           root.mode = data.mode === Buffer.MODE_NOW ? Buffer.MODE_NOW : Buffer.MODE_QUEUE
           root.shortcut = String(data.shortcut || ShortcutModel.DEFAULT)
         }
@@ -785,7 +851,7 @@ Item {
           visible: root.configured && !root.setupMode
           width: parent.width
           channelsModel: channelsModel
-          channelId: root.channelId
+          channelIds: root.channelIds
           mode: root.mode
           linkCardUrl: root.linkCardUrl
           sending: root.sending
@@ -800,12 +866,7 @@ Item {
             root.setupMode = true
             Qt.callLater(root.focusDefault)
           }
-          onChannelPicked: function(id) {
-            if (id !== root.channelId) {
-              root.channelId = id
-              root.savePrefs()
-            }
-          }
+          onChannelToggled: function(id) { root.toggleChannel(id) }
           onModePicked: function(m) {
             if (m !== root.mode) {
               root.mode = m
