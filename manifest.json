@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "thenitai.omabuffer",
+  "name": "Buffer composer",
+  "version": "0.1.0",
+  "author": "thenitai",
+  "license": "MIT",
+  "description": "Post to Buffer from anywhere — queue or publish text posts to any connected channel via a global shortcut",
+  "kinds": ["overlay"],
+  "keepLoaded": true,
+  "entryPoints": {
+    "overlay": "Buffer.qml"
+  }
+}
