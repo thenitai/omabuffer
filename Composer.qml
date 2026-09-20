@@ -149,30 +149,28 @@ Column {
 
   Item {
     width: parent.width
-    height: c.footerHeight
+    height: Math.max(goToBufferLink.implicitHeight, remainingCount.implicitHeight)
 
-    Row {
+    FooterLink {
+      id: goToBufferLink
+      anchors.left: parent.left
+      text: "Go to Buffer"
+      onActivated: {
+        c.dismissRequested()
+        Qt.openUrlExternally("https://publish.buffer.com")
+      }
+    }
+
+    Text {
+      id: remainingCount
       anchors.right: parent.right
-      anchors.verticalCenter: parent.verticalCenter
-      spacing: Style.space(12)
-
-      FooterLink {
-        text: "Go to Buffer"
-        onActivated: {
-          c.dismissRequested()
-          Qt.openUrlExternally("https://publish.buffer.com")
-        }
-      }
-
-      Text {
-        y: (parent.height - height) / 2
-        visible: c.channelIds.length > 0
-        text: c.overLimit ? (c.remaining + " over") : (c.remaining + " left")
-        color: c.overLimit ? c.errorColor : c.foreground
-        opacity: c.overLimit ? 1 : 0.55
-        font.family: c.fontFamily
-        font.pixelSize: Style.font.caption
-      }
+      y: (parent.height - height) / 2
+      visible: c.channelIds.length > 0
+      text: c.overLimit ? (c.remaining + " over") : (c.remaining + " left")
+      color: c.overLimit ? c.errorColor : c.foreground
+      opacity: c.overLimit ? 1 : 0.55
+      font.family: c.fontFamily
+      font.pixelSize: Style.font.caption
     }
   }
 
@@ -244,7 +242,7 @@ Column {
     Row {
       anchors.right: parent.right
       anchors.verticalCenter: parent.verticalCenter
-      spacing: Style.space(12)
+      spacing: Style.space(6)
 
       Button {
         height: c.footerHeight
@@ -262,6 +260,11 @@ Column {
         enabled: !c.sending
         tooltipText: "Publish immediately"
         onClicked: c.modePicked(Buffer.MODE_NOW)
+      }
+
+      Item {
+        width: Style.space(12)
+        height: 1
       }
 
       Button {
