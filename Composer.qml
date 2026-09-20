@@ -147,6 +147,35 @@ Column {
     }
   }
 
+  Item {
+    width: parent.width
+    height: c.footerHeight
+
+    Row {
+      anchors.right: parent.right
+      anchors.verticalCenter: parent.verticalCenter
+      spacing: Style.space(12)
+
+      FooterLink {
+        text: "Go to Buffer"
+        onActivated: {
+          c.dismissRequested()
+          Qt.openUrlExternally("https://publish.buffer.com")
+        }
+      }
+
+      Text {
+        y: (parent.height - height) / 2
+        visible: c.channelIds.length > 0
+        text: c.overLimit ? (c.remaining + " over") : (c.remaining + " left")
+        color: c.overLimit ? c.errorColor : c.foreground
+        opacity: c.overLimit ? 1 : 0.55
+        font.family: c.fontFamily
+        font.pixelSize: Style.font.caption
+      }
+    }
+  }
+
   // ---- channel chips (multi-select) -------------------------------------------
 
   Flow {
@@ -172,30 +201,6 @@ Column {
           : "Add " + (displayName !== "" ? displayName : name) + " (" + service + ") to this post"
         onClicked: c.channelToggled(id)
       }
-    }
-  }
-
-  // ---- queue / now toggle --------------------------------------------------------
-
-  Row {
-    spacing: Style.space(6)
-
-    Button {
-      height: c.footerHeight
-      text: "Queue"
-      selected: c.mode === Buffer.MODE_QUEUE
-      enabled: !c.sending
-      tooltipText: "Add to the channel's Buffer queue"
-      onClicked: c.modePicked(Buffer.MODE_QUEUE)
-    }
-
-    Button {
-      height: c.footerHeight
-      text: "Now"
-      selected: c.mode === Buffer.MODE_NOW
-      enabled: !c.sending
-      tooltipText: "Publish immediately"
-      onClicked: c.modePicked(Buffer.MODE_NOW)
     }
   }
 
@@ -234,11 +239,6 @@ Column {
         text: "Settings"
         onActivated: c.settingsRequested()
       }
-
-      FooterLink {
-        text: "Go to Buffer"
-        onActivated: Qt.openUrlExternally("https://publish.buffer.com")
-      }
     }
 
     Row {
@@ -246,19 +246,28 @@ Column {
       anchors.verticalCenter: parent.verticalCenter
       spacing: Style.space(12)
 
-      Text {
-        y: (parent.height - height) / 2
-        visible: c.channelIds.length > 0
-        text: c.overLimit ? (c.remaining + " over") : (c.remaining + " left")
-        color: c.overLimit ? c.errorColor : c.foreground
-        opacity: c.overLimit ? 1 : 0.55
-        font.family: c.fontFamily
-        font.pixelSize: Style.font.caption
+      Button {
+        height: c.footerHeight
+        text: "Queue"
+        selected: c.mode === Buffer.MODE_QUEUE
+        enabled: !c.sending
+        tooltipText: "Add to the channel's Buffer queue"
+        onClicked: c.modePicked(Buffer.MODE_QUEUE)
+      }
+
+      Button {
+        height: c.footerHeight
+        text: "Now"
+        selected: c.mode === Buffer.MODE_NOW
+        enabled: !c.sending
+        tooltipText: "Publish immediately"
+        onClicked: c.modePicked(Buffer.MODE_NOW)
       }
 
       Button {
         id: postButton
         height: c.footerHeight
+        horizontalPadding: Style.space(16)
         text: c.checking ? "Checking…" : (c.sending ? "Sending…" : (c.mode === Buffer.MODE_NOW ? "Post now" : "Queue"))
         selected: true
         enabled: c.canPost
