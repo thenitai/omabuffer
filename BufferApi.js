@@ -10,6 +10,7 @@
 var MODE_QUEUE = "addToQueue"
 var MODE_NOW = "shareNow"
 var DEFAULT_MODE = MODE_QUEUE
+var CHANNEL_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
 // Buffer's per-network post text limits (developers.buffer.com/guides/
 // character-limits.html). Most networks count UTF-16 code units, so
@@ -203,6 +204,68 @@ function extractChannels(json) {
   if (data.channels && Array.isArray(data.channels.items)) return data.channels.items
   if (Array.isArray(data.channels)) return data.channels
   return []
+}
+
+function normalizeChannels(json) {
+  var items = extractChannels(json)
+  var channels = []
+  for (var i = 0; i < items.length; i++) {
+    var ch = items[i] || {}
+    var id = String(ch.id || "")
+    if (!id || ch.isDisconnected) continue
+    channels.push({
+      id: id,
+      name: String(ch.name || ""),
+      displayName: String(ch.displayName || ""),
+      service: String(ch.service || ""),
+      avatar: String(ch.avatar || "")
+    })
+  }
+  return channels
+}
+
+function isChannelCacheFresh(fetchedAt, now) {
+  var timestamp = Number(fetchedAt)
+  var current = now === undefined ? Date.now() : Number(now)
+  if (!isFinite(timestamp) || !isFinite(current) || timestamp <= 0) return false
+  var age = current - timestamp
+  return age >= 0 && age < CHANNEL_CACHE_TTL_MS
+}
+
+function parseChannelCache(value, now) {
+  var empty = {
+    valid: false,
+    fresh: false,
+    organizationId: "",
+    fetchedAt: 0,
+    channels: []
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)
+      || !Array.isArray(value.channels)) return empty
+  var organizationId = String(value.organizationId || "")
+  var fetchedAt = Number(value.fetchedAt)
+  if (!organizationId || !isFinite(fetchedAt) || fetchedAt <= 0) return empty
+  var channels = normalizeChannels(value.channels)
+  if (value.channels.length > 0 && channels.length === 0) return empty
+  return {
+    valid: true,
+    fresh: isChannelCacheFresh(fetchedAt, now),
+    organizationId: organizationId,
+    fetchedAt: fetchedAt,
+    channels: channels
+  }
+}
+
+function reconcileChannelIds(selectedIds, channels) {
+  var selected = Array.isArray(selectedIds) ? selectedIds : []
+  var items = Array.isArray(channels) ? channels : []
+  var kept = []
+  for (var i = 0; i < items.length; i++) {
+    var id = String((items[i] || {}).id || "")
+    if (id && selected.indexOf(id) !== -1) kept.push(id)
+  }
+  if (kept.length === 0 && items.length > 0) kept = [String(items[0].id || "")]
+  return kept
 }
 
 // `buffer dailyPostingLimits list --channel-ids <id> --output json` →

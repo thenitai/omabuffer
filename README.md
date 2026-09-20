@@ -13,6 +13,9 @@ official Buffer CLI. A tiny composer overlay for the Omarchy Quattro shell.
   chips; the multi-selection is remembered. One post is created per channel
   (Buffer's API posts to a single channel per call), each with the link
   card attached where its network supports one
+- **Fast, resilient startup** — connected channels are cached for seven days,
+  shown immediately after a restart, and kept available if a background
+  refresh cannot reach Buffer
 - **Background posting** — the composer closes the moment you hit post;
   the outcome arrives as a system notification. Failures keep the draft so
   you can correct and retry
@@ -55,6 +58,11 @@ npm install -g @bufferapp/cli
    shows the setup form. Paste the API key and hit *Save & verify*.
 3. Pick the channels to post to directly in the composer; multi-select is
    remembered across opens and restarts.
+
+Connected channels and the Buffer organization ID are cached in
+`~/.config/omarchy-buffer/prefs.json`. The plugin refreshes that cache after
+seven days while continuing to show stale channels if Buffer is unavailable.
+Use **Settings → Channels → Refresh channels** to refresh it immediately.
 
 The API key is stored in `~/.config/omarchy-buffer/api-key` (directory mode
 `0700`, the key file `0600`) and is handed to the Buffer CLI through its

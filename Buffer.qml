@@ -61,10 +61,20 @@ Item {
   property var channelIds: []
   property string mode: Buffer.MODE_QUEUE
 
+  property var cachedChannels: []
+  property double channelsCachedAt: 0
+  property bool channelCacheValid: false
   property bool channelsLoaded: false
   property bool channelsLoading: false
+  property bool channelRefreshManual: false
 
   readonly property bool configured: storageReady && cliPath !== "" && apiKey !== ""
+  readonly property bool channelStateReady: configured && prefsLoaded && keyLoaded
+  readonly property string channelCacheText: {
+    if (!root.channelCacheValid) return "Channels have not been cached yet."
+    var refreshed = new Date(root.channelsCachedAt).toLocaleString()
+    return "Last refreshed " + refreshed + ". Automatically refreshes every 7 days."
+  }
 
   property string statusText: ""
   property bool statusIsError: false
@@ -124,14 +134,23 @@ Item {
   }
 
   function savePrefs() {
-    prefsView.setText(JSON.stringify({
+    var data = {
       channelIds: root.channelIds,
       mode: root.mode,
       shortcut: root.shortcut
-    }))
+    }
+    if (root.channelCacheValid) {
+      data.channelCache = {
+        organizationId: root.lastOrgId,
+        fetchedAt: root.channelsCachedAt,
+        channels: root.cachedChannels
+      }
+    }
+    prefsView.setText(JSON.stringify(data))
   }
 
   onSetupModeChanged: if (setupMode && !root.cliPath) root.resolveCli()
+  onChannelStateReadyChanged: if (channelStateReady && root.opened && !root.savingSetup) root.ensureChannels(false)
 
   function resolveCli() {
     if (cliResolveProc.running) return
@@ -165,7 +184,7 @@ Item {
     root.applyFocusedScreen()
     root.opened = true
     if (!root.cliChecked) root.resolveCli()
-    root.ensureChannels()
+    root.ensureChannels(false)
     if (root.sending) root.setStatus("Posting in the background…")
     Qt.callLater(root.focusDefault)
   }
@@ -223,21 +242,23 @@ Item {
     setup.statusText = "Verifying…"
     setup.statusError = false
     root.verifyKey(key, function(err, orgId) {
-      root.savingSetup = false
       if (err) {
+        root.savingSetup = false
         if (err.isAuth)
           return setupError("That API key was rejected. Create a fresh one at publish.buffer.com → Settings → API.")
         return setupError(err.message || "Could not reach Buffer")
       }
+      var keyChanged = key !== root.apiKey
       root.apiKey = key
+      if (keyChanged) root.invalidateChannelCache()
       root.lastOrgId = orgId
-      root.channelsLoaded = false
       writeFileProc.writeSecret("api-key", key, null)
       root.savePrefs()
+      root.savingSetup = false
       setup.statusText = ""
       root.setupMode = false
       root.flash("Signed in ✓", false)
-      root.ensureChannels()
+      root.refreshChannels(false, orgId)
       Qt.callLater(root.focusDefault)
     })
   }
@@ -279,59 +300,70 @@ Item {
     return name + " (" + ch.service + ")"
   }
 
-  function ensureChannels() {
-    if (!root.configured || root.channelsLoaded || root.channelsLoading) return
+  function invalidateChannelCache() {
+    root.lastOrgId = ""
+    root.cachedChannels = []
+    root.channelsCachedAt = 0
+    root.channelCacheValid = false
+    root.channelsLoaded = false
+    root.channelIds = []
+    channelsModel.clear()
+  }
+
+  function applyChannels(items) {
+    channelsModel.clear()
+    for (var i = 0; i < items.length; i++) channelsModel.append(items[i])
+    root.channelIds = Buffer.reconcileChannelIds(root.channelIds, items)
+  }
+
+  function ensureChannels(force) {
+    if (!root.channelStateReady || root.channelsLoading) return
+    if (force !== true && root.channelCacheValid
+        && Buffer.isChannelCacheFresh(root.channelsCachedAt, Date.now())) return
+    root.refreshChannels(force === true, "")
+  }
+
+  function refreshChannels(manual, organizationId) {
+    if (!root.channelStateReady || root.channelsLoading) return
     root.channelsLoading = true
-    if (root.lastOrgId === "") {
-      root.setStatus("Connecting…")
-      root.verifyKey(root.apiKey, function(err, orgId) {
-        if (err) {
-          root.channelsLoading = false
-          return root.channelsFailed(err)
-        }
-        root.lastOrgId = orgId
-        root.fetchChannels()
-      })
-    } else {
+    root.channelRefreshManual = manual === true
+    root.setStatus(root.channelsLoaded ? "Refreshing channels…" : "Connecting…")
+    if (organizationId) {
+      root.lastOrgId = organizationId
       root.fetchChannels()
+      return
     }
+    root.verifyKey(root.apiKey, function(err, orgId) {
+      if (err) {
+        root.channelsLoading = false
+        root.channelRefreshManual = false
+        return root.channelsFailed(err)
+      }
+      root.lastOrgId = orgId
+      root.fetchChannels()
+    })
   }
 
   function fetchChannels() {
-    root.setStatus("Loading channels…")
+    if (!root.channelsLoaded) root.setStatus("Loading channels…")
     channelsProc.start(function(res) {
       root.channelsLoading = false
+      var wasManual = root.channelRefreshManual
+      root.channelRefreshManual = false
       if (!res.ok) return root.channelsFailed(res)
-      channelsModel.clear()
-      var items = Buffer.extractChannels(res.json)
-      for (var i = 0; i < items.length; i++) {
-        var ch = items[i]
-        if (ch.isDisconnected) continue
-        channelsModel.append({
-          id: String(ch.id || ""),
-          name: String(ch.name || ""),
-          displayName: String(ch.displayName || ""),
-          service: String(ch.service || ""),
-          avatar: String(ch.avatar || "")
-        })
-      }
-      // Keep the remembered selection, minus channels that no longer exist.
-      var kept = []
-      for (var j = 0; j < channelsModel.count; j++) {
-        var id = channelsModel.get(j).id
-        if (root.isSelected(id)) kept.push(id)
-      }
-      if (kept.length === 0 && channelsModel.count > 0)
-        kept = [channelsModel.get(0).id]
-      root.channelIds = kept
+      var items = Buffer.normalizeChannels(res.json)
+      root.cachedChannels = items
+      root.channelsCachedAt = Date.now()
+      root.channelCacheValid = true
+      root.applyChannels(items)
       root.channelsLoaded = true
-      root.clearStatus()
+      root.savePrefs()
+      if (wasManual) root.flash("Channels refreshed ✓", false)
+      else root.clearStatus()
     })
   }
 
   function channelsFailed(err) {
-    // Force a fresh verification on the next open.
-    root.channelsLoaded = false
     if (err && err.isAuth) {
       root.setupMode = true
       root.clearStatus()
@@ -353,7 +385,6 @@ Item {
   // link card is attached per channel where the service supports it.
 
   function startPost() {
-    if (root.channelsLoading) return
     if (root.sending) {
       flash("Still sending the previous post…", true)
       return
@@ -723,6 +754,15 @@ Item {
           root.channelIds = ids.filter(function(x) { return typeof x === "string" })
           root.mode = data.mode === Buffer.MODE_NOW ? Buffer.MODE_NOW : Buffer.MODE_QUEUE
           root.shortcut = String(data.shortcut || ShortcutModel.DEFAULT)
+          var cache = Buffer.parseChannelCache(data.channelCache, Date.now())
+          if (cache.valid) {
+            root.lastOrgId = cache.organizationId
+            root.cachedChannels = cache.channels
+            root.channelsCachedAt = cache.fetchedAt
+            root.channelCacheValid = true
+            root.applyChannels(cache.channels)
+            root.channelsLoaded = true
+          }
         }
       } catch (e) {}
       root.prefsLoaded = true
@@ -834,7 +874,10 @@ Item {
           shortcutBusy: root.shortcutBusy
           shortcutOk: root.shortcutOk
           shortcutMessage: root.shortcutMessage
+          channelCacheText: root.channelCacheText
+          channelRefreshBusy: root.channelsLoading
           onShortcutApply: function(value) { root.applyShortcut(value, true) }
+          onChannelRefreshRequested: root.ensureChannels(true)
           onSaved: function(key) { root.saveCredentials(key) }
           onBackRequested: {
             root.setupMode = false
@@ -857,7 +900,7 @@ Item {
           mode: root.mode
           linkCardUrl: root.linkCardUrl
           sending: root.sending
-          checking: root.channelsLoading
+          checking: root.channelsLoading && !root.channelsLoaded
           foreground: root.foreground
           errorColor: root.errorColor
           fontFamily: root.fontFamily

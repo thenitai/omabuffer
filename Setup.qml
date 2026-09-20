@@ -24,11 +24,14 @@ Column {
   property bool shortcutBusy: false
   property bool shortcutOk: true
   property string shortcutMessage: ""
+  property string channelCacheText: ""
+  property bool channelRefreshBusy: false
   property string statusText: ""
   property bool statusError: false
 
   signal saved(string apiKey)
   signal shortcutApply(string value)
+  signal channelRefreshRequested()
   signal backRequested()
   signal dismissRequested()
 
@@ -111,6 +114,51 @@ Column {
     font.family: setup.fontFamily
     font.pixelSize: Style.font.caption
     wrapMode: Text.WordWrap
+  }
+
+  // ---- channels -------------------------------------------------------------
+
+  Item {
+    visible: setup.signedIn
+    width: parent.width
+    height: visible ? Style.space(40) : 0
+
+    Column {
+      anchors.left: parent.left
+      anchors.right: refreshChannelsButton.left
+      anchors.rightMargin: setup.contentSpacing
+      anchors.verticalCenter: parent.verticalCenter
+      spacing: Style.space(4)
+
+      Text {
+        text: "Channels"
+        color: setup.foreground
+        font.family: setup.fontFamily
+        font.pixelSize: Style.font.subtitle
+        font.bold: true
+      }
+
+      Text {
+        width: parent.width
+        text: setup.channelCacheText
+        textFormat: Text.PlainText
+        color: setup.foreground
+        opacity: 0.5
+        font.family: setup.fontFamily
+        font.pixelSize: Style.font.caption
+        elide: Text.ElideRight
+      }
+    }
+
+    Button {
+      id: refreshChannelsButton
+      anchors.right: parent.right
+      anchors.verticalCenter: parent.verticalCenter
+      height: Style.space(32)
+      text: setup.channelRefreshBusy ? "Refreshing…" : "Refresh channels"
+      enabled: !setup.channelRefreshBusy && !setup.busy
+      onClicked: setup.channelRefreshRequested()
+    }
   }
 
   // ---- API key --------------------------------------------------------------

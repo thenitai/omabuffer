@@ -6,7 +6,7 @@ const path = require("path")
 
 let src = fs.readFileSync(path.join(__dirname, "..", "BufferApi.js"), "utf8")
 src = src.replace(/\.pragma library\n/, "")
-const Buffer = eval("(function(){" + src + "; return {MODE_QUEUE, MODE_NOW, DEFAULT_MODE, CHAR_LIMITS, DEFAULT_CHAR_LIMIT, LINK_CARD_SERVICES, supportsLinkCard, charLimit, extractUrls, firstUrl, hostOf, graphemeCount, charCount, buildPostInput, minRemaining, validateMulti, parseResult, extractAccount, extractChannels, limitEntry, limitReached}})()")
+const Buffer = eval("(function(){" + src + "; return {MODE_QUEUE, MODE_NOW, DEFAULT_MODE, CHANNEL_CACHE_TTL_MS, CHAR_LIMITS, DEFAULT_CHAR_LIMIT, LINK_CARD_SERVICES, supportsLinkCard, charLimit, extractUrls, firstUrl, hostOf, graphemeCount, charCount, buildPostInput, minRemaining, validateMulti, parseResult, extractAccount, extractChannels, normalizeChannels, isChannelCacheFresh, parseChannelCache, reconcileChannelIds, limitEntry, limitReached}})()")
 
 let failed = 0
 function eq(name, got, want) {
@@ -105,6 +105,62 @@ eq("extract account empty", Buffer.extractAccount({}), { id: "", email: "", orga
 eq("extract channels items", Buffer.extractChannels({ items: [{ id: "c1" }, { id: "c2" }] }), [{ id: "c1" }, { id: "c2" }])
 eq("extract channels array", Buffer.extractChannels([{ id: "c1" }]), [{ id: "c1" }])
 eq("extract channels empty", Buffer.extractChannels({}), [])
+
+// channel cache
+const normalizedChannels = Buffer.normalizeChannels({ items: [
+  { id: "c1", name: "Work", displayName: "Work feed", service: "linkedin", avatar: "a" },
+  { id: "c2", name: "Old", service: "twitter", isDisconnected: true },
+  { name: "Missing ID", service: "bluesky" }
+] })
+eq("normalize channels", normalizedChannels, [
+  { id: "c1", name: "Work", displayName: "Work feed", service: "linkedin", avatar: "a" }
+])
+const now = 2000000000000
+eq("cache fresh before seven days", Buffer.isChannelCacheFresh(now - Buffer.CHANNEL_CACHE_TTL_MS + 1, now), true)
+eq("cache stale at seven days", Buffer.isChannelCacheFresh(now - Buffer.CHANNEL_CACHE_TTL_MS, now), false)
+eq("cache invalid timestamp", Buffer.isChannelCacheFresh(0, now), false)
+eq("cache future timestamp", Buffer.isChannelCacheFresh(now + 1, now), false)
+eq("parse missing cache", Buffer.parseChannelCache(null, now).valid, false)
+eq("parse malformed cache", Buffer.parseChannelCache({ organizationId: "org1", fetchedAt: now, channels: [{ name: "No ID" }] }, now).valid, false)
+eq("parse fresh cache", Buffer.parseChannelCache({
+  organizationId: "org1",
+  fetchedAt: now - 1000,
+  channels: normalizedChannels
+}, now), {
+  valid: true,
+  fresh: true,
+  organizationId: "org1",
+  fetchedAt: now - 1000,
+  channels: normalizedChannels
+})
+eq("parse expired cache as usable but stale", Buffer.parseChannelCache({
+  organizationId: "org1",
+  fetchedAt: now - Buffer.CHANNEL_CACHE_TTL_MS,
+  channels: normalizedChannels
+}, now).fresh, false)
+eq("parse future cache as usable but stale", Buffer.parseChannelCache({
+  organizationId: "org1",
+  fetchedAt: now + 1000,
+  channels: normalizedChannels
+}, now), {
+  valid: true,
+  fresh: false,
+  organizationId: "org1",
+  fetchedAt: now + 1000,
+  channels: normalizedChannels
+})
+eq("parse empty channel cache", Buffer.parseChannelCache({
+  organizationId: "org1",
+  fetchedAt: now - 1000,
+  channels: []
+}, now).valid, true)
+eq("reconcile selected channels", Buffer.reconcileChannelIds(["c3", "c1"], [
+  { id: "c1" }, { id: "c2" }
+]), ["c1"])
+eq("reconcile falls back to first", Buffer.reconcileChannelIds(["c3"], [
+  { id: "c1" }, { id: "c2" }
+]), ["c1"])
+eq("reconcile empty channels", Buffer.reconcileChannelIds(["c1"], []), [])
 
 // daily posting limits
 const limitJson = { channelId: "ch1", sent: 4, scheduled: 6, limit: 10, isAtLimit: true }
