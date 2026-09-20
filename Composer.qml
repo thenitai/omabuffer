@@ -33,6 +33,26 @@ Column {
   signal linkCardRequested()
   signal clearLinkCardRequested()
 
+  component FooterLink: Text {
+    id: footerLink
+
+    signal activated()
+
+    y: (parent.height - height) / 2
+    color: c.foreground
+    opacity: footerLinkMouse.containsMouse ? 1 : 0.55
+    font.family: c.fontFamily
+    font.pixelSize: Style.font.caption
+
+    MouseArea {
+      id: footerLinkMouse
+      anchors.fill: parent
+      hoverEnabled: true
+      cursorShape: Qt.PointingHandCursor
+      onClicked: footerLink.activated()
+    }
+  }
+
   readonly property alias text: textArea.text
   readonly property alias textAreaItem: textArea
 
@@ -210,22 +230,14 @@ Column {
       anchors.verticalCenter: parent.verticalCenter
       spacing: Style.space(6)
 
-      Text {
-        id: settingsLink
-        y: (parent.height - height) / 2
+      FooterLink {
         text: "Settings"
-        color: c.foreground
-        opacity: settingsLinkMouse.containsMouse ? 1 : 0.55
-        font.family: c.fontFamily
-        font.pixelSize: Style.font.caption
+        onActivated: c.settingsRequested()
+      }
 
-        MouseArea {
-          id: settingsLinkMouse
-          anchors.fill: parent
-          hoverEnabled: true
-          cursorShape: Qt.PointingHandCursor
-          onClicked: c.settingsRequested()
-        }
+      FooterLink {
+        text: "Go to Buffer"
+        onActivated: Qt.openUrlExternally("https://publish.buffer.com")
       }
     }
 
