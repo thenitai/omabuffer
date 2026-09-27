@@ -112,6 +112,13 @@ wraps Buffer's public GraphQL API:
   channel (Buffer's API targets a single channel per post), with the
   payload piped through stdin (nothing user-typed ever appears in `argv`)
 
+Each API-backed CLI request runs through a Node wrapper with a 30-second
+deadline and a 1 MiB combined stdout/stderr limit, enforced before output
+reaches the shell. Exceeding either limit kills the request process group
+and returns a bounded error. A failed post retains the draft; check Buffer
+before retrying because a timed-out or oversized-response post may already
+have been accepted.
+
 Errors are surfaced from the CLI's structured JSON output; auth failures
 (issued or expired keys) reopen the setup form, mutation errors (for
 example the server-side limit check) are shown inline.

@@ -55,6 +55,7 @@ Item {
   // CLI presence (resolved through a login shell so mise/npm paths work)
   property string cliPath: ""
   property bool cliChecked: false
+  readonly property var cliCommand: ["sh", "-lc", 'exec node "$@"', "buffer-request", root.pluginDir + "scripts/buffer-cli.cjs", root.cliPath]
 
   property string apiKey: ""
   property string lastOrgId: ""
@@ -572,7 +573,7 @@ Item {
       if (running) return callback({ ok: false, message: "busy", isAuth: false }, "")
       accountProc.key = key
       accountProc.cb = callback
-      command = [root.cliPath, "account", "--output", "json", "--quiet"]
+      command = root.cliCommand.concat(["account", "--output", "json", "--quiet"])
       running = true
     }
   }
@@ -603,9 +604,9 @@ Item {
     function start(callback) {
       if (running) return callback({ ok: false, message: "busy", isAuth: false })
       channelsProc.cb = callback
-      command = [root.cliPath, "channels", "list", "--organization-id", root.lastOrgId,
+      command = root.cliCommand.concat(["channels", "list", "--organization-id", root.lastOrgId,
         "--fields", "id,name,displayName,service,avatar,isDisconnected",
-        "--output", "json", "--quiet"]
+        "--output", "json", "--quiet"])
       running = true
     }
   }
@@ -637,8 +638,8 @@ Item {
     function start(channelIds, callback) {
       if (running) return callback({ ok: false, message: "busy", isAuth: false }, null)
       limitProc.cb = callback
-      command = [root.cliPath, "dailyPostingLimits", "list",
-        "--channel-ids", channelIds.join(","), "--output", "json", "--quiet"]
+      command = root.cliCommand.concat(["dailyPostingLimits", "list",
+        "--channel-ids", channelIds.join(","), "--output", "json", "--quiet"])
       running = true
     }
   }
@@ -677,8 +678,8 @@ Item {
       if (running) return callback({ ok: false, message: "busy", isAuth: false })
       postProc.payload = json
       postProc.cb = callback
-      command = [root.cliPath, "posts", "create", "--input", "-",
-        "--output", "json", "--quiet"]
+      command = root.cliCommand.concat(["posts", "create", "--input", "-",
+        "--output", "json", "--quiet"])
       running = true
     }
   }
