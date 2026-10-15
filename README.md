@@ -51,6 +51,11 @@ Then install the Buffer CLI (Node 18 or later):
 npm install -g @bufferapp/cli
 ```
 
+With a Node version manager such as mise, global packages belong to a Node
+version. After upgrading Node, rerun the install command above and reopen
+the composer. The plugin checks that the CLI can start, so a leftover shim
+shows the installation instructions instead of being treated as ready to post.
+
 ## Setup
 
 1. Create an API key at **publish.buffer.com → Settings → API**.

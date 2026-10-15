@@ -52,7 +52,7 @@ Item {
   property bool prefsLoaded: false
   property bool keyLoaded: false
 
-  // CLI presence (resolved through a login shell so mise/npm paths work)
+  // CLI availability (checked through a login shell so mise/npm paths work)
   property string cliPath: ""
   property bool cliChecked: false
   readonly property var cliCommand: ["sh", "-lc", 'exec node "$@"', "buffer-request", root.pluginDir + "scripts/buffer-cli.cjs", root.cliPath]
@@ -184,7 +184,7 @@ Item {
   function open(payloadJson) {
     root.applyFocusedScreen()
     root.opened = true
-    if (!root.cliChecked) root.resolveCli()
+    if (!root.cliChecked || !root.cliPath) root.resolveCli()
     root.ensureChannels(false)
     if (root.sending) root.setStatus("Posting in the background…")
     Qt.callLater(root.focusDefault)
@@ -488,10 +488,10 @@ Item {
     }
   }
 
-  // Locates the buffer CLI through a login shell so npm/mise paths resolve.
+  // A version-manager shim may exist even when its CLI is unavailable.
   Process {
     id: cliResolveProc
-    command: ["sh", "-lc", "command -v buffer 2>/dev/null || true"]
+    command: ["sh", "-lc", 'exec sh "$1"', "buffer-resolve", root.pluginDir + "scripts/resolve-cli.sh"]
     stdout: StdioCollector {
       id: cliResolveOut
       waitForEnd: true
@@ -504,7 +504,7 @@ Item {
         last = lines[lines.length - 1].trim()
       }
       root.cliChecked = true
-      root.cliPath = last.indexOf("/") === 0 ? last : ""
+      root.cliPath = code === 0 && last.indexOf("/") === 0 ? last : ""
     }
   }
 

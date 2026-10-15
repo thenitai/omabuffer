@@ -202,7 +202,7 @@ Column {
   Text {
     visible: setup.cliMissing
     width: parent.width
-    text: "The Buffer CLI is not installed. Run:\n\nnpm install -g @bufferapp/cli\n\n(Node 18 or later.)"
+    text: "The Buffer CLI is missing or could not start. Install it for your current Node version:\n\nnpm install -g @bufferapp/cli\n\nThen close and reopen Buffer. (Node 18 or later.)"
     textFormat: Text.PlainText
     color: setup.errorColor
     font.family: setup.fontFamily
