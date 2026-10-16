@@ -32,6 +32,7 @@ Column {
   signal modePicked(string mode)
   signal linkCardRequested()
   signal clearLinkCardRequested()
+  signal pasteFailed(string message)
 
   component FooterLink: Text {
     id: footerLink
@@ -77,14 +78,8 @@ Column {
       if (Buffer.supportsLinkCard(c.selectedServices[i])) return true
     return false
   }
-  readonly property bool canPost: !c.sending && !c.checking && c.channelIds.length > 0
+  readonly property bool canPost: !c.sending && !c.checking && !clipboardPaste.busy && c.channelIds.length > 0
     && !c.overLimit && textArea.text.trim() !== ""
-
-  function insertClipboardText(t) {
-    if (!t) return
-    textArea.insert(textArea.cursorPosition, t)
-    textArea.forceActiveFocus()
-  }
 
   function clearDraft() {
     textArea.clear()
@@ -96,6 +91,7 @@ Column {
     height: Style.space(120)
     enabled: !c.sending
     wrapMode: TextEdit.Wrap
+    textFormat: TextEdit.PlainText
     clip: true
     placeholderText: "What's up?"
     placeholderTextColor: Qt.darker(c.foreground, 1.6)
@@ -112,16 +108,22 @@ Column {
     }
 
     Keys.priority: Keys.BeforeItem
+    Keys.forwardTo: [clipboardPaste]
+    ContextMenu.menu: clipboardPaste.menu
+
+    BoundedPaste {
+      id: clipboardPaste
+      editor: textArea
+      onFailed: function(message) { c.pasteFailed(message) }
+    }
+
     Keys.onPressed: function(event) {
       if (event.key === Qt.Key_Escape) {
         c.dismissRequested()
         event.accepted = true
       } else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
                  && (event.modifiers & Qt.ControlModifier)) {
-        c.postRequested()
-        event.accepted = true
-      } else if (event.key === Qt.Key_V && (event.modifiers & Qt.ControlModifier)) {
-        textArea.paste()
+        if (!clipboardPaste.busy) c.postRequested()
         event.accepted = true
       } else if ((event.modifiers & Qt.MetaModifier)
                  && !(event.modifiers & Qt.ControlModifier)) {
@@ -129,9 +131,6 @@ Column {
         // bind is created with allow_input_capture = true).
         if (event.key === Qt.Key_A) {
           textArea.selectAll()
-          event.accepted = true
-        } else if (event.key === Qt.Key_V) {
-          textArea.paste()
           event.accepted = true
         } else if (event.key === Qt.Key_C) {
           textArea.copy()

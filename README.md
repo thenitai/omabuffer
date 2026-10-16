@@ -99,10 +99,20 @@ section is chosen during installation; see above for how to move it later.
 | --- | --- |
 | `Esc` | Close (draft is kept) |
 | `Ctrl+Enter` | Post (composer closes; the post is sent in the background) |
-| `Ctrl+V` | Paste clipboard text at the cursor |
+| `Ctrl+V` / `Shift+Insert` | Paste clipboard text, replacing the selection |
+| Middle click | Paste the primary selection at the pointer |
+| Right click | Editing menu, including bounded paste |
 | `Ctrl+A/C/X/Z` | Standard text editing |
 | `Super+A/V/C/X/Z` | Same, for Super-mapped system shortcuts — requires the triggering Hyprland bind to opt in with `{ allow_input_capture = true }` |
 | Click outside | Close |
+
+Clipboard reads in the composer and settings run asynchronously through
+`wl-paste` in a separate process, using the system Python 3 included with
+Omarchy. Each read has a **2-second total deadline** and a **64 KiB combined
+stdout/stderr limit**, checked before any text reaches the shell. Oversized,
+failed, or timed-out reads insert nothing and show an error. Editing or
+closing the field cancels an outstanding read. Only plain text is inserted;
+keyboard, context-menu and middle-click paste all use the same limits.
 
 ## CLI notes
 

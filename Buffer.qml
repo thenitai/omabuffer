@@ -907,6 +907,7 @@ Item {
           fontFamily: root.fontFamily
           contentSpacing: root.contentSpacing
           onPostRequested: root.startPost()
+          onPasteFailed: function(message) { root.flash(message, true) }
           onDismissRequested: root.dismiss()
           onSettingsRequested: {
             root.setupMode = true

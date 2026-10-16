@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls as Controls
 import qs.Commons
 import qs.Ui
 
@@ -77,7 +78,15 @@ Column {
       placeholderText: "Disabled"
       color: setup.foreground
       font.family: setup.fontFamily
-      onAccepted: setup.shortcutApply(text)
+      onAccepted: if (!shortcutPaste.busy) setup.shortcutApply(text)
+      Keys.priority: Keys.BeforeItem
+      Keys.forwardTo: [shortcutPaste]
+      Controls.ContextMenu.menu: shortcutPaste.menu
+      BoundedPaste {
+        id: shortcutPaste
+        editor: shortcutField
+        onFailed: function(message) { setup.statusText = message; setup.statusError = true }
+      }
       Keys.onEscapePressed: function(event) {
         if (!setup.shortcutBusy) setup.dismissRequested()
         event.accepted = true
@@ -89,7 +98,7 @@ Column {
       height: Style.space(30)
       text: setup.shortcutBusy ? "Applying…" : "Apply"
       bordered: true
-      enabled: !setup.shortcutBusy
+      enabled: !setup.shortcutBusy && !shortcutPaste.busy
       onClicked: setup.shortcutApply(shortcutField.text)
     }
   }
@@ -192,6 +201,14 @@ Column {
     placeholderText: "Buffer API key"
     color: setup.foreground
     font.family: setup.fontFamily
+    Keys.priority: Keys.BeforeItem
+    Keys.forwardTo: [keyPaste]
+    Controls.ContextMenu.menu: keyPaste.menu
+    BoundedPaste {
+      id: keyPaste
+      editor: keyField
+      onFailed: function(message) { setup.statusText = message; setup.statusError = true }
+    }
     Keys.onReturnPressed: saveButton.clicked()
     Keys.onEnterPressed: saveButton.clicked()
     Keys.onEscapePressed: function(event) { setup.dismissRequested(); event.accepted = true }
@@ -260,9 +277,9 @@ Column {
         visible: !setup.cliMissing
         text: setup.busy ? "Verifying…" : "Save & verify"
         selected: true
-        enabled: !setup.busy && keyField.text.trim() !== ""
+        enabled: !setup.busy && !keyPaste.busy && keyField.text.trim() !== ""
         onClicked: {
-          if (setup.busy) return
+          if (setup.busy || keyPaste.busy) return
           setup.saved(keyField.text.trim())
         }
       }
