@@ -114,6 +114,13 @@ failed, or timed-out reads insert nothing and show an error. Editing or
 closing the field cancels an outstanding read. Only plain text is inserted;
 keyboard, context-menu and middle-click paste all use the same limits.
 
+Settings keep their native Qt text controls permanently read-only, with
+direct keyboard edits handled separately. This prevents Qt's automatic
+clipboard-change checks from fetching foreign text, even while settings
+are hidden. Selection, password masking, cut/copy, undo/redo and bounded
+paste are preserved. Use paste for IME-composed text in settings; the post
+composer retains native input-method support.
+
 ## CLI notes
 
 Everything goes through the `buffer` CLI (`@bufferapp/cli` on npm), which
@@ -141,6 +148,14 @@ example the server-side limit check) are shown inline.
 Not implemented (yet): images and video (Buffer requires media to live at
 a public URL), threads, reply/quote behavior, scheduled-at times, drafts
 and ideas.
+
+## Tests
+
+Run `node --test tests/*.test.cjs`. The Qt tests run offscreen in Quickshell
+and require Qt 6 development headers, QtTest, `g++` and `pkg-config`. A
+test-only clipboard provider counts payload requests to catch automatic
+clipboard reads without a paste gesture. Tests use synthetic clipboard
+data and do not access the desktop clipboard, credentials or Buffer API.
 
 ## Remove
 

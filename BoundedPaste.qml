@@ -96,9 +96,13 @@ Item {
           || paste.editor.selectionStart !== paste.selectionStart
           || paste.editor.selectionEnd !== paste.selectionEnd) return
       paste.applying = true
-      paste.editor.remove(paste.selectionStart, paste.selectionEnd)
-      paste.editor.insert(paste.selectionStart, result.text)
-      paste.editor.cursorPosition = paste.selectionStart + result.text.length
+      if (typeof paste.editor.replace === "function") {
+        paste.editor.replace(paste.selectionStart, paste.selectionEnd, result.text)
+      } else {
+        paste.editor.remove(paste.selectionStart, paste.selectionEnd)
+        paste.editor.insert(paste.selectionStart, result.text)
+        paste.editor.cursorPosition = paste.selectionStart + result.text.length
+      }
       paste.editor.forceActiveFocus()
       paste.applying = false
     }

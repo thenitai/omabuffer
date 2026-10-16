@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Controls as Controls
 import qs.Commons
 import qs.Ui
 
@@ -71,7 +70,7 @@ Column {
     width: parent.width
     spacing: setup.contentSpacing
 
-    TextField {
+    ClipboardSafeField {
       id: shortcutField
       width: parent.width - shortcutApplyButton.width - parent.spacing
       enabled: !setup.shortcutBusy
@@ -81,7 +80,7 @@ Column {
       onAccepted: if (!shortcutPaste.busy) setup.shortcutApply(text)
       Keys.priority: Keys.BeforeItem
       Keys.forwardTo: [shortcutPaste]
-      Controls.ContextMenu.menu: shortcutPaste.menu
+      editMenu: shortcutPaste.menu
       BoundedPaste {
         id: shortcutPaste
         editor: shortcutField
@@ -192,7 +191,7 @@ Column {
     wrapMode: Text.WordWrap
   }
 
-  TextField {
+  ClipboardSafeField {
     id: keyField
     visible: !setup.cliMissing
     width: parent.width
@@ -203,7 +202,7 @@ Column {
     font.family: setup.fontFamily
     Keys.priority: Keys.BeforeItem
     Keys.forwardTo: [keyPaste]
-    Controls.ContextMenu.menu: keyPaste.menu
+    editMenu: keyPaste.menu
     BoundedPaste {
       id: keyPaste
       editor: keyField
